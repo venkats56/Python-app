@@ -4,18 +4,15 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - '.github/workflows/**'
 
 jobs:
 
   ci:
-    name: Build and Push Docker Image
+    name: Build Docker Image
     runs-on: ubuntu-latest
 
     outputs:
-      sha_short: ${{ steps.vars.outputs.sha_short }}
+      image_tag: ${{ steps.vars.outputs.sha_short }}
 
     steps:
 
@@ -46,11 +43,34 @@ jobs:
             venkatasai2568/python-app:latest
 
   cd:
-    name: ArgoCD Sync
+    name: Deploy using ArgoCD
     needs: ci
     runs-on: self-hosted
 
     steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Print Image Tag
+        run: |
+          echo "Deploying Image Tag:"
+          echo "${{ needs.ci.outputs.image_tag }}"
+
+      - name: Update Helm values.yaml
+        run: |
+          sed -i 's/tag:.*/tag: ${{ needs.ci.outputs.image_tag }}/' charts/python-app/values.yaml
+
+      - name: Commit Updated values.yaml
+        run: |
+          git config --global user.email "github-actions@github.com"
+          git config --global user.name "github-actions"
+
+          git add charts/python-app/values.yaml
+
+          git commit -m "Updated image tag to ${{ needs.ci.outputs.image_tag }}" || echo "No changes to commit"
+
+          git push
 
       - name: Install ArgoCD CLI
         run: |
@@ -58,10 +78,12 @@ jobs:
           https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-arm64
 
           chmod +x argocd
+
           sudo mv argocd /usr/local/bin/
 
       - name: Verify ArgoCD CLI
-        run: argocd version --client
+        run: |
+          argocd version --client
 
       - name: Login to ArgoCD
         run: |
@@ -70,7 +92,7 @@ jobs:
             --password ${{ secrets.ARGOCD_PASSWORD }} \
             --insecure
 
-      - name: Sync ArgoCD Application
+      - name: Sync ArgoCD App
         run: |
           argocd app sync python-app
 
