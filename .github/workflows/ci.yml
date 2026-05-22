@@ -1,19 +1,25 @@
-name: ci
+name: CI-CD
 
 on:
   push:
-    paths:
-      - 'src/**'
     branches:
       - main
+    paths:
+      - 'src/**'
+      - '.github/workflows/**'
 
 jobs:
+
   ci:
-    runs-on: self-hosted
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+
+    outputs:
+      sha_short: ${{ steps.vars.outputs.sha_short }}
 
     steps:
 
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Login to Docker Hub
@@ -22,14 +28,15 @@ jobs:
           username: ${{ secrets.DOCKERHUBUSERNAME }}
           password: ${{ secrets.DOCKERHUBTOKEN }}
 
-      - name: Set up Docker Buildx
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Extract Git SHA
         id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Build and Push
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -37,3 +44,36 @@ jobs:
           tags: |
             venkatasai2568/python-app:${{ steps.vars.outputs.sha_short }}
             venkatasai2568/python-app:latest
+
+  cd:
+    name: ArgoCD Sync
+    needs: ci
+    runs-on: self-hosted
+
+    steps:
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd \
+          https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-arm64
+
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/
+
+      - name: Verify ArgoCD CLI
+        run: argocd version --client
+
+      - name: Login to ArgoCD
+        run: |
+          argocd login argocd-server.argocd.svc \
+            --username ${{ secrets.ARGOCD_USERNAME }} \
+            --password ${{ secrets.ARGOCD_PASSWORD }} \
+            --insecure
+
+      - name: Sync ArgoCD Application
+        run: |
+          argocd app sync python-app
+
+      - name: Wait for Healthy State
+        run: |
+          argocd app wait python-app --health --timeout 300
