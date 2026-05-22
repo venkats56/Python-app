@@ -1,0 +1,9 @@
+apiVersion: actions.summerwind.dev/v1alpha1
+kind: RunnerDeployment
+metadata:
+  name: example-runner
+spec:
+  replicas: 1
+  template:
+    spec:
+      repository: venkats56/Python-app
