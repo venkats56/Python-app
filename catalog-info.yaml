@@ -10,4 +10,4 @@ metadata:
 spec:
   type: service
   lifecycle: production
-  owner: user:default/venkats56
+  owner: group:default/platform-team
