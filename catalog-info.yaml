@@ -1,0 +1,13 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+
+metadata:
+  name: python-app
+  description: Python Flask application
+  annotations:
+    github.com/project-slug: venkats56/Python-app
+
+spec:
+  type: service
+  lifecycle: production
+  owner: user:default/venkats56
